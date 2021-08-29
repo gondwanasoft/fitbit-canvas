@@ -1,0 +1,1 @@
+export const autoConstruct = true;      // automatically search whole of document for <use href="#canvas"...> elements and convert them to canvas widgets

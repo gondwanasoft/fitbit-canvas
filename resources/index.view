@@ -1,0 +1,14 @@
+<svg>
+  <defs>
+    <link rel="import" href="widgets/canvas/index.defs" />
+  </defs>
+
+  <rect x="15" y="65" width="306" height="206" fill="green" />
+  <rect x="18" y="68" width="300" height="200" fill="black" />
+  <use id="myCanvas" href="#canvas" x="18" y="68" width="300" height="200" />
+  <rect id="touch" x="18" y="68" width="300" height="200" opacity="0" pointer-events="visible" />
+
+  <image id="canvasTest" href="" x="18" y="68" width="300" height="200" display="none"/>
+
+  <rect id="update" x="18" y="300" width="300" height="36" fill="green" pointer-events="visible" display="none" />
+</svg>

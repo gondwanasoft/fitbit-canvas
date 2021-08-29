@@ -1,0 +1,7 @@
+<defs>
+  <link rel="stylesheet" href="styles.css" />
+
+  <symbol id="canvas" type="canvas" class="canvas" >
+    <image id="image" />
+  </symbol>
+</defs>

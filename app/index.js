@@ -1,16 +1,12 @@
-import { me } from "appbit";
 import document from 'document';
-import './widgets/canvas'
+import './widgets/canvas';
 
-const myCanvasEl = document.getElementById('myCanvas')
-const touchEl = document.getElementById('touch')
-touchEl.onmousemove = onMouseMove
+const myCanvasEl = document.getElementById('myCanvas');
+myCanvasEl.fillPixel(150,100);
 
-function onMouseMove(e) {
-  myCanvasEl.fillPixel(e.screenX-touchEl.x, e.screenY-touchEl.y)
-}
+const touchEl = document.getElementById('touch');
+touchEl.onmousemove = e => {myCanvasEl.fillPixel(e.screenX-touchEl.x, e.screenY-touchEl.y);}
 
-me.onunload = () => {
-  myCanvasEl.reset();   // this won't be necessary eventually
-}
-
+document.getElementById('red').onclick = () => {myCanvasEl.fillStyle = 'red';}
+document.getElementById('green').onclick = () => {myCanvasEl.fillStyle = 'green';}
+document.getElementById('blue').onclick = () => {myCanvasEl.fillStyle = 'blue';}

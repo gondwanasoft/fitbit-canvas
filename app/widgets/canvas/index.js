@@ -20,7 +20,8 @@ const listFiles = title => {   // TODO 4 del
 
 export const constructCanvas = el => {
   const imageEl = el.getElementById('image');
-  const imageFilenamePrefix = '/private/data/cw!canvas';   // TODO 3.2 needs to change for every instance of canvas
+  console.log(`constructCanvas() id=${el.id}`)
+  const imageFilenamePrefix = '/private/data/cw!' + el.id + '!';   // needs to change for every instance of canvas
   let filenameCounter = 0;
   let imageFilename = imageFilenamePrefix + filenameCounter + '.png';
   let imageFilenameTxi = imageFilename + '.txi';
@@ -128,7 +129,7 @@ export const constructCanvas = el => {
     x = Math.round(x); y = Math.round(y);
     if (x < 0 || x >= el.width || y < 0 || y >= el.height) return;    // range-check x and y
 
-    if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');   // TODO 3.1 for efficiency, only open and close file once for every batch of primitives
+    if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');
     //const position = (x + y * el.width) * textureBPP + TXI_HEADER_LENGTH;
     //const position = y * el.width*textureBPP + x * textureBPP + TXI_HEADER_LENGTH + 1;
     const pixelIndex = y * el.width + x;
@@ -212,5 +213,6 @@ function toHex(x) {
 
 // TODO 3.3 measure fill rate on phys watch
 // TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+// TODO 3.5 rect drawing
 // TODO 3.6 async processing via queue
 // TODO 3.25 test with multiple canvases

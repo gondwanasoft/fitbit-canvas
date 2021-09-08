@@ -29,67 +29,66 @@ export const constructCanvas = el => {
   const pixelBuffer = new ArrayBuffer(textureBPP);    // one pixel in ABGR6666
   const pixelBytes = new Uint8Array(pixelBuffer);
 
-  el.class = el.class;    // bring forward (ie, trigger) application of CSS styles
-
-  // Create empty canvas image file:
-  //listFiles('Before create')
-  // TODO 3 put file creation into a function (IIFE?) so local data can be GCed
-  //const rowDataLen = ((el.width + 1) * textureBPP + 3) & ~3;    // +1 because final pixel is duplicated, and round up to multiple of 4 bytes
-  const pixelCount = el.width * el.height;
-  const rleFullRunCount = Math.floor(pixelCount / MAX_SECTION_LENGTH);
-  const rleFinalRunLen = pixelCount % MAX_SECTION_LENGTH;
-  const imageDataLen = pixelCount * textureBPP + rleFullRunCount + (rleFinalRunLen? 1 : 0);
-  console.log(`rle full runs: ${rleFullRunCount}; final run len: ${rleFinalRunLen}; imageDataLen=${imageDataLen}`)
-  const header = new Uint32Array([0x0A697874, 0x20000028, imageDataLen, 0, 0x12186666, 0, el.width, el.height, imageDataLen, 0xDEADBEEF]);
-  //console.log(`header=${header}`)
-  const file = fs.openSync(imageFilenameTxi, 'w');
-  fs.writeSync(file, header);
-
-  /*const rleRunLength = new Uint8Array([120]);
-  fs.writeSync(file, rleRunLength, 0, 1, TXI_HEADER_LENGTH);
-
-  // Write image data:
-  const rowDataLen = el.width * textureBPP;
-  const rowDataBytes = new Uint8Array(rowDataLen);
-  let position = TXI_HEADER_LENGTH + 1;   // RLE: not nec +1; may need to write this in RLE sequences
-  for (let row=0; row<el.height; row++) {
-    fs.writeSync(file, rowDataBytes, 0, rowDataLen, position);
-    position += rowDataLen;
-  }*/
-
-  // Write empty image data:
-  let position = TXI_HEADER_LENGTH;
-  if (rleFullRunCount) {    // Write RLE full runs
-    //const rowDataLen = MAX_SECTION_LENGTH * textureBPP + 1;   // +1 because of RLE run-length value
-    const rowDataBytes = new Uint8Array(RLE_FULL_RUN_DATA_LEN);
-    rowDataBytes[0] = MAX_SECTION_LENGTH;
-    for (let run=0; run<rleFullRunCount; run++) {
-      fs.writeSync(file, rowDataBytes, 0, RLE_FULL_RUN_DATA_LEN, position);
-      position += RLE_FULL_RUN_DATA_LEN;
-    }
-  }
-  if (rleFinalRunLen) {     // Write final (non-full) RLE run
-    const rowDataLen = rleFinalRunLen * textureBPP + 1;   // +1 because of RLE run-length value
-    const rowDataBytes = new Uint8Array(rowDataLen);
-    rowDataBytes[0] = rleFinalRunLen;
-    fs.writeSync(file, rowDataBytes, 0, rowDataLen, position);
-  }
-
-  fs.closeSync(file);
-  //listFiles('After create')
-  //dump(imageFilenameTxi);
-
   pixelBytes[0] = alpha; // Set default fillStyle to opaque black
 
-  // PRIVATE MEMBERS:
+  el.class = el.class;    // bring forward (ie, trigger) application of CSS styles
+
+  const constructFile = () => {   // create empty canvas image file
+    //const rowDataLen = ((el.width + 1) * textureBPP + 3) & ~3;    // +1 because final pixel is duplicated, and round up to multiple of 4 bytes
+    const pixelCount = el.width * el.height;
+    const rleFullRunCount = Math.floor(pixelCount / MAX_SECTION_LENGTH);
+    const rleFinalRunLen = pixelCount % MAX_SECTION_LENGTH;
+    const imageDataLen = pixelCount * textureBPP + rleFullRunCount + (rleFinalRunLen? 1 : 0);
+    //console.log(`rle full runs: ${rleFullRunCount}; final run len: ${rleFinalRunLen}; imageDataLen=${imageDataLen}`)
+    const header = new Uint32Array([0x0A697874, 0x20000028, imageDataLen, 0, 0x12186666, 0, el.width, el.height, imageDataLen, 0xDEADBEEF]);
+    //console.log(`header=${header}`)
+    const file = fs.openSync(imageFilenameTxi, 'w');
+    fs.writeSync(file, header);
+
+    /*const rleRunLength = new Uint8Array([120]);
+    fs.writeSync(file, rleRunLength, 0, 1, TXI_HEADER_LENGTH);
+
+    // Write image data:
+    const rowDataLen = el.width * textureBPP;
+    const rowDataBytes = new Uint8Array(rowDataLen);
+    let position = TXI_HEADER_LENGTH + 1;   // RLE: not nec +1; may need to write this in RLE sequences
+    for (let row=0; row<el.height; row++) {
+      fs.writeSync(file, rowDataBytes, 0, rowDataLen, position);
+      position += rowDataLen;
+    }*/
+
+    // Write empty image data:
+    let position = TXI_HEADER_LENGTH;
+    if (rleFullRunCount) {    // Write RLE full runs
+      //const rowDataLen = MAX_SECTION_LENGTH * textureBPP + 1;   // +1 because of RLE run-length value
+      const rowDataBytes = new Uint8Array(RLE_FULL_RUN_DATA_LEN);
+      rowDataBytes[0] = MAX_SECTION_LENGTH;
+      for (let run=0; run<rleFullRunCount; run++) {
+        fs.writeSync(file, rowDataBytes, 0, RLE_FULL_RUN_DATA_LEN, position);
+        position += RLE_FULL_RUN_DATA_LEN;
+      }
+    }
+    if (rleFinalRunLen) {     // Write final (non-full) RLE run
+      const rowDataLen = rleFinalRunLen * textureBPP + 1;   // +1 because of RLE run-length value
+      const rowDataBytes = new Uint8Array(rowDataLen);
+      rowDataBytes[0] = rleFinalRunLen;
+      fs.writeSync(file, rowDataBytes, 0, rowDataLen, position);
+    }
+
+    fs.closeSync(file);
+    //listFiles('After create')
+    //dump(imageFilenameTxi);
+  }
+
+  constructFile();
+
+  // PUBLIC API:
 
   Object.defineProperty(el, 'autoRedraw', {
     set: function(newAutoRedraw) {
       auto = newAutoRedraw;
     }
   });
-
-  // PUBLIC API:
 
   Object.defineProperty(el, 'fillStyle', {
     set: function(colour) {
@@ -128,13 +127,13 @@ export const constructCanvas = el => {
     x = Math.round(x); y = Math.round(y);
     if (x < 0 || x >= el.width || y < 0 || y >= el.height) return;    // range-check x and y
 
-    const file = fs.openSync(imageFilenameTxi, 'r+');   // TODO 3.5 for efficiency, only open and close file once for every batch of primitives
+    const file = fs.openSync(imageFilenameTxi, 'r+');   // TODO 3.1 for efficiency, only open and close file once for every batch of primitives
     //const position = (x + y * el.width) * textureBPP + TXI_HEADER_LENGTH;
-    //const position = y * el.width*textureBPP + x * textureBPP + TXI_HEADER_LENGTH + 1; // TODO 0.5 RLE: not +1, and take RLE sequence length bytes into account, and improve el.width*textureBPP
+    //const position = y * el.width*textureBPP + x * textureBPP + TXI_HEADER_LENGTH + 1;
     const pixelIndex = y * el.width + x;
-    const rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);
-    const rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;
-    const position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run // TODO 3 improve efficiency
+    const rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
+    const rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
+    const position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
     //console.log(`fillPixel(${x},${y}) rleRunIndex=${rleRunIndex} rleRunOffset=${rleRunOffset} position=${position}`);
     fs.writeSync(file, pixelBuffer, 0, textureBPP, position);
     fs.closeSync(file);
@@ -207,4 +206,5 @@ function toHex(x) {
 
 // TODO 3.3 measure fill rate on phys watch
 // TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
-// TODO 3.5 async processing via queue
+// TODO 3.6 async processing via queue
+// TODO 3.05 test with multiple canvases

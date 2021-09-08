@@ -3,6 +3,8 @@
     <link rel="import" href="widgets/canvas/index.defs" />
   </defs>
 
+  <rect id="update" x="0" y="0" width="100%" height="50" fill="yellow" pointer-events="visible" display="none" />
+
   <rect x="15" y="65" width="306" height="206" fill="#808080" />
   <rect x="18" y="68" width="300" height="200" fill="white" />
   <use id="myCanvas" href="#canvas" x="18" y="68" width="300" height="200" />

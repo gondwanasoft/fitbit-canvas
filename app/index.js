@@ -39,3 +39,8 @@ touchEl.onmousemove = e => {myCanvasEl.fillPixel(e.screenX-touchEl.x, e.screenY-
 document.getElementById('red').onclick = () => {myCanvasEl.fillStyle = 'red';}
 document.getElementById('green').onclick = () => {myCanvasEl.fillStyle = 'green';}
 document.getElementById('blue').onclick = () => {myCanvasEl.fillStyle = 'blue';}
+
+/*const myCanvas2El = document.getElementById('myCanvas2');
+myCanvas2El.fillStyle = 'white';
+myCanvas2El.fillPixel(50,20);
+myCanvas2El.redraw();*/

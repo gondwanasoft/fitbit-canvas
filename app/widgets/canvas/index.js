@@ -24,6 +24,7 @@ export const constructCanvas = el => {
   let filenameCounter = 0;
   let imageFilename = imageFilenamePrefix + filenameCounter + '.png';
   let imageFilenameTxi = imageFilename + '.txi';
+  let file;
   let auto = false;  // autoRedraw(): redisplay image after every change
   let alpha = 0x3f;   // 1.0 as six least-significant bits
   const pixelBuffer = new ArrayBuffer(textureBPP);    // one pixel in ABGR6666
@@ -42,7 +43,7 @@ export const constructCanvas = el => {
     //console.log(`rle full runs: ${rleFullRunCount}; final run len: ${rleFinalRunLen}; imageDataLen=${imageDataLen}`)
     const header = new Uint32Array([0x0A697874, 0x20000028, imageDataLen, 0, 0x12186666, 0, el.width, el.height, imageDataLen, 0xDEADBEEF]);
     //console.log(`header=${header}`)
-    const file = fs.openSync(imageFilenameTxi, 'w');
+    file = fs.openSync(imageFilenameTxi, 'w');
     fs.writeSync(file, header);
 
     /*const rleRunLength = new Uint8Array([120]);
@@ -75,7 +76,7 @@ export const constructCanvas = el => {
       fs.writeSync(file, rowDataBytes, 0, rowDataLen, position);
     }
 
-    fs.closeSync(file);
+    //fs.closeSync(file);
     //listFiles('After create')
     //dump(imageFilenameTxi);
   }
@@ -127,7 +128,7 @@ export const constructCanvas = el => {
     x = Math.round(x); y = Math.round(y);
     if (x < 0 || x >= el.width || y < 0 || y >= el.height) return;    // range-check x and y
 
-    const file = fs.openSync(imageFilenameTxi, 'r+');   // TODO 3.1 for efficiency, only open and close file once for every batch of primitives
+    if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');   // TODO 3.1 for efficiency, only open and close file once for every batch of primitives
     //const position = (x + y * el.width) * textureBPP + TXI_HEADER_LENGTH;
     //const position = y * el.width*textureBPP + x * textureBPP + TXI_HEADER_LENGTH + 1;
     const pixelIndex = y * el.width + x;
@@ -136,12 +137,17 @@ export const constructCanvas = el => {
     const position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
     //console.log(`fillPixel(${x},${y}) rleRunIndex=${rleRunIndex} rleRunOffset=${rleRunOffset} position=${position}`);
     fs.writeSync(file, pixelBuffer, 0, textureBPP, position);
-    fs.closeSync(file);
+    //fs.closeSync(file);
 
     if (auto) el.redraw();
   }
 
   el.redraw = () => {
+    if (file !== undefined) {   // close the file to flush unwritten data
+      fs.closeSync(file);
+      file = undefined;
+    }
+
     // Rename image file so it can be redisplayed:
     //listFiles('Before redraw')
     const oldFilenameTxi = imageFilenameTxi;
@@ -174,7 +180,7 @@ export const constructCanvases = parentEl => {
 // hex dump
 function dump(filename) { // TODO 4 del
   const stats = fs.statSync(filename);
-  console.log(`size=${stats.size}`)
+  console.log(`${filename} size=${stats.size}`)
   const len = Math.min(512, stats.size);
   const buffer = new ArrayBuffer(len);
   const byteArray = new Uint8Array(buffer);
@@ -207,4 +213,4 @@ function toHex(x) {
 // TODO 3.3 measure fill rate on phys watch
 // TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
 // TODO 3.6 async processing via queue
-// TODO 3.05 test with multiple canvases
+// TODO 3.25 test with multiple canvases

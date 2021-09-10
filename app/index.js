@@ -3,15 +3,22 @@ import './widgets/canvas';
 
 const myCanvasEl = document.getElementById('myCanvas');
 
-/*// Speed test:
-myCanvasEl.autoRedraw = false;
-const PX_COUNT = 10000
+// Speed test (fillPixel):
+/*myCanvasEl.autoRedraw = true;
+const PX_COUNT = 400
 const tStart = Date.now()
-for (let i=0; i<PX_COUNT; i++) {
-  myCanvasEl.fillPixel(Math.random()*300,Math.random()*200);
-}
-console.log(`px/sec = ${PX_COUNT/(Date.now()-tStart)*1000}`)
+for (let i=0; i<PX_COUNT; i++) myCanvasEl.fillPixel(Math.random()*300,Math.random()*200);
+const tElapsed = (Date.now()-tStart)/1000
+console.log(`t=${tElapsed} rate=${PX_COUNT/tElapsed} px/sec`)
 myCanvasEl.redraw();*/
+
+// Speed test (fillRect):
+const RECT_COUNT = 10
+const tStart = Date.now()
+for (let i=0; i<RECT_COUNT; i++) myCanvasEl.fillRect(Math.random()*100,Math.random()*100, 20, 100);
+const tElapsed = (Date.now()-tStart)/1000
+console.log(`t=${tElapsed} rate=${RECT_COUNT/tElapsed} rect/sec`)
+myCanvasEl.redraw();
 
 /*myCanvasEl.autoRedraw = false;
 myCanvasEl.fillStyle = 'red';
@@ -32,6 +39,8 @@ myCanvasEl.fillPixel(2,2);
 myCanvasEl.fillPixel(3,2);
 myCanvasEl.redraw()*/
 
+//myCanvasEl.fillStyle = '#ff00ff'; myCanvasEl.fillRect(0,0,299,199); myCanvasEl.redraw();
+
 myCanvasEl.autoRedraw = true;
 const touchEl = document.getElementById('touch');
 touchEl.onmousemove = e => {myCanvasEl.fillPixel(e.screenX-touchEl.x, e.screenY-touchEl.y);}
@@ -39,8 +48,3 @@ touchEl.onmousemove = e => {myCanvasEl.fillPixel(e.screenX-touchEl.x, e.screenY-
 document.getElementById('red').onclick = () => {myCanvasEl.fillStyle = 'red';}
 document.getElementById('green').onclick = () => {myCanvasEl.fillStyle = 'green';}
 document.getElementById('blue').onclick = () => {myCanvasEl.fillStyle = 'blue';}
-
-/*const myCanvas2El = document.getElementById('myCanvas2');
-myCanvas2El.fillStyle = 'white';
-myCanvas2El.fillPixel(50,20);
-myCanvas2El.redraw();*/

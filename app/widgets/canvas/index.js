@@ -20,7 +20,7 @@ const listFiles = title => {   // TODO 4 del
 
 export const constructCanvas = el => {
   const imageEl = el.getElementById('image');
-  console.log(`constructCanvas() id=${el.id}`)
+  //console.log(`constructCanvas() id=${el.id}`)
   const imageFilenamePrefix = '/private/data/cw!' + el.id + '!';   // needs to change for every instance of canvas
   let filenameCounter = 0;
   let imageFilename = imageFilenamePrefix + filenameCounter + '.png';
@@ -92,7 +92,7 @@ export const constructCanvas = el => {
     }
   });
 
-  Object.defineProperty(el, 'fillStyle', {
+  Object.defineProperty(el, 'fillStyle', {  // TODO 3.2 gradient
     set: function(colour) {
       el.style.fill = colour;   // lazy way of getting a colour string converted to #RRGGBB
       //console.log(`fill=${el.style.fill}`)
@@ -139,6 +139,44 @@ export const constructCanvas = el => {
     //console.log(`fillPixel(${x},${y}) rleRunIndex=${rleRunIndex} rleRunOffset=${rleRunOffset} position=${position}`);
     fs.writeSync(file, pixelBuffer, 0, textureBPP, position);
     //fs.closeSync(file);
+
+    if (auto) el.redraw();
+  }
+
+  el.fillRect = (left, top, width, height) => {
+    left = Math.round(left); top = Math.round(top); width = Math.round(width); height = Math.round(height);
+    // range-checks:
+    if (left < 0 || left >= el.width || top < 0 || top >= el.height || width <= 0 || height <= 0) return; // ideally allow width and height < 0
+    width = Math.min(width, el.width - left); height = Math.min(height, el.height - top);
+
+    if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');
+
+    // TODO 2.5 optimise
+    let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount;
+    // Prepare pixel run buffer:
+    const maxRunLength = Math.max(MAX_SECTION_LENGTH, width);
+    const pixelRunBuffer = new ArrayBuffer(maxRunLength * textureBPP);    // pixels in ABGR6666
+    const pixelRunBytes = new Uint8Array(pixelRunBuffer);
+    for (let i=0; i<maxRunLength; i++) pixelRunBytes.set(pixelBytes, i*textureBPP); // TODO 2.0 consider creating this only when fill or alpha changes: memory implication?
+    //console.log(`fillRect() pixelRunBytes=${pixelRunBytes[0]} ${pixelRunBytes[1]} ${pixelRunBytes[2]} ${pixelRunBytes[3]} ${pixelRunBytes[4]} ${pixelRunBytes[5]} ${pixelRunBytes[6]} ${pixelRunBytes[7]}`)
+    for (let row=0; row<height; row++) {
+      pixelIndex = y * el.width + left;
+      rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
+      rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
+      let pxRemainingInWidth = width;
+      let pxRemainingInRun = MAX_SECTION_LENGTH - rleRunOffset;     // how many pixels are in this run from rleRunOffset (assuming run is full)
+      position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
+      while (pxRemainingInWidth) {                                   // write px to a RLE run, until rect width all done
+        pixelCount = Math.min(pxRemainingInWidth, pxRemainingInRun);   // how many px to write in this run
+        byteCount = pixelCount * textureBPP;
+        //console.log(`fillRect() x=${x} pixelCount=${pixelCount}`);
+        fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
+        position += byteCount + 1;                                   // +1 to skip run length value
+        pxRemainingInWidth -= pixelCount;
+        pxRemainingInRun = MAX_SECTION_LENGTH;  // assume next run is a full run: restriction on width should prevent writing beyond end of final run
+      }
+      y++;
+    }
 
     if (auto) el.redraw();
   }
@@ -202,7 +240,7 @@ function dump(filename) { // TODO 4 del
   if (line !== '') console.log(line)
 }
 
-function toHex(x) {
+function toHex(x) { // TODO 4 del
   const hex_alphabets = "0123456789abcdef";
   let int1, int2;
   int1 = x / 16;
@@ -211,8 +249,5 @@ function toHex(x) {
   return(hex);
 }
 
-// TODO 3.3 measure fill rate on phys watch
 // TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
-// TODO 3.5 rect drawing
 // TODO 3.6 async processing via queue
-// TODO 3.25 test with multiple canvases

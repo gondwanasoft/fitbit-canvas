@@ -4,7 +4,6 @@
   </defs>
 
   <rect id="update" x="0" y="0" width="100%" height="50" fill="yellow" pointer-events="visible" display="none" />
-  <!--<use id="myCanvas2" href="#canvas" x="50%-50" y="20" width="100" height="40" />-->
 
   <rect x="15" y="65" width="306" height="206" fill="#808080" />
   <rect x="18" y="68" width="300" height="200" fill="white" />

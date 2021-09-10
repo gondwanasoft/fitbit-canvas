@@ -160,20 +160,19 @@ export const constructCanvas = el => {
 
     if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');
 
-    // TODO 2.5 optimise
-    let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount;
+    let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount, pxRemainingInWidth, pxRemainingInRun;
     for (let row=0; row<height; row++) {
       pixelIndex = y * el.width + left;
       rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
       rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
-      let pxRemainingInWidth = width;
-      let pxRemainingInRun = MAX_SECTION_LENGTH - rleRunOffset;     // how many pixels are in this run from rleRunOffset (assuming run is full)
+      pxRemainingInWidth = width;
+      pxRemainingInRun = MAX_SECTION_LENGTH - rleRunOffset;     // how many pixels are in this run from rleRunOffset (assuming run is full)
       position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
       while (pxRemainingInWidth) {                                   // write px to a RLE run, until rect width all done
         pixelCount = Math.min(pxRemainingInWidth, pxRemainingInRun);   // how many px to write in this run
         byteCount = pixelCount * textureBPP;
         //console.log(`fillRect() x=${x} pixelCount=${pixelCount}`);
-        //fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
+        fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
         position += byteCount + 1;                                   // +1 to skip run length value
         pxRemainingInWidth -= pixelCount;
         pxRemainingInRun = MAX_SECTION_LENGTH;  // assume next run is a full run: restriction on width should prevent writing beyond end of final run

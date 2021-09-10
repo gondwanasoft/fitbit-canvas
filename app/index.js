@@ -4,7 +4,7 @@ import './widgets/canvas';
 const myCanvasEl = document.getElementById('myCanvas');
 
 // Speed test (fillPixel):
-/*myCanvasEl.autoRedraw = true;
+/*myCanvasEl.autoRedraw = false;
 const PX_COUNT = 400
 const tStart = Date.now()
 for (let i=0; i<PX_COUNT; i++) myCanvasEl.fillPixel(Math.random()*300,Math.random()*200);
@@ -13,7 +13,7 @@ console.log(`t=${tElapsed} rate=${PX_COUNT/tElapsed} px/sec`)
 myCanvasEl.redraw();*/
 
 // Speed test (fillRect):
-const RECT_COUNT = 10
+const RECT_COUNT = 100
 const tStart = Date.now()
 for (let i=0; i<RECT_COUNT; i++) myCanvasEl.fillRect(Math.random()*100,Math.random()*100, 20, 100);
 const tElapsed = (Date.now()-tStart)/1000

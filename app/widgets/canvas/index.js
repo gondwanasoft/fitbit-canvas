@@ -28,10 +28,17 @@ export const constructCanvas = el => {
   let file;
   let auto = false;  // autoRedraw(): redisplay image after every change
   let alpha = 0x3f;   // 1.0 as six least-significant bits
-  const pixelBuffer = new ArrayBuffer(textureBPP);    // one pixel in ABGR6666
+  const pixelBuffer = new ArrayBuffer(textureBPP);    // one px in ABGR6666
   const pixelBytes = new Uint8Array(pixelBuffer);
+  const pixelRunBuffer = new ArrayBuffer(textureBPP * MAX_SECTION_LENGTH);    // one RLE run in ABGR6666
+  const pixelRunBytes = new Uint8Array(pixelRunBuffer);
+
+  const fillPixelRunBuffer = () => { // copy pixelBuffer to all px in pixelRunBuffer
+    for (let i=0; i<MAX_SECTION_LENGTH; i++) pixelRunBytes.set(pixelBytes, i*textureBPP);
+  }
 
   pixelBytes[0] = alpha; // Set default fillStyle to opaque black
+  fillPixelRunBuffer();
 
   el.class = el.class;    // bring forward (ie, trigger) application of CSS styles
 
@@ -115,6 +122,7 @@ export const constructCanvas = el => {
       pixelBytes[1] = 0xff & ((g << 4) | (b >> 2));   // ggggBBBB
       pixelBytes[2] = (r << 2) + (g >> 4);                // rrrrrrGG
       //console.log(`${r},${g},${b} pixelBytes=${pixelBytes}`)
+      fillPixelRunBuffer();
     }
   });
 
@@ -122,6 +130,7 @@ export const constructCanvas = el => {
     set: function(newAlpha) {
       alpha = newAlpha * 0x3f;
       pixelBytes[0] = (pixelBytes[0] & 0xc0) | alpha;
+      fillPixelBuffer();
     }
   });
 
@@ -153,12 +162,6 @@ export const constructCanvas = el => {
 
     // TODO 2.5 optimise
     let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount;
-    // Prepare pixel run buffer:
-    const maxRunLength = Math.max(MAX_SECTION_LENGTH, width);
-    const pixelRunBuffer = new ArrayBuffer(maxRunLength * textureBPP);    // pixels in ABGR6666
-    const pixelRunBytes = new Uint8Array(pixelRunBuffer);
-    for (let i=0; i<maxRunLength; i++) pixelRunBytes.set(pixelBytes, i*textureBPP); // TODO 2.0 consider creating this only when fill or alpha changes: memory implication?
-    //console.log(`fillRect() pixelRunBytes=${pixelRunBytes[0]} ${pixelRunBytes[1]} ${pixelRunBytes[2]} ${pixelRunBytes[3]} ${pixelRunBytes[4]} ${pixelRunBytes[5]} ${pixelRunBytes[6]} ${pixelRunBytes[7]}`)
     for (let row=0; row<height; row++) {
       pixelIndex = y * el.width + left;
       rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
@@ -170,7 +173,7 @@ export const constructCanvas = el => {
         pixelCount = Math.min(pxRemainingInWidth, pxRemainingInRun);   // how many px to write in this run
         byteCount = pixelCount * textureBPP;
         //console.log(`fillRect() x=${x} pixelCount=${pixelCount}`);
-        fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
+        //fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
         position += byteCount + 1;                                   // +1 to skip run length value
         pxRemainingInWidth -= pixelCount;
         pxRemainingInRun = MAX_SECTION_LENGTH;  // assume next run is a full run: restriction on width should prevent writing beyond end of final run

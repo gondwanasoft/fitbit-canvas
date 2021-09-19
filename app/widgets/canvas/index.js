@@ -18,6 +18,47 @@ const listFiles = title => {   // TODO 4 del
   }
 }
 
+const constructDrawStyle = runBufferLength => {   // strokeStyle and fillStyle
+  const buffers = {
+    pixelBuffer: new ArrayBuffer(textureBPP),    // one px in ABGR6666
+    pixelBytes: undefined,
+    pixelRunBuffer: new ArrayBuffer(textureBPP * runBufferLength),    // one RLE run in ABGR6666
+    pixelRunBytes: undefined,
+
+    populateRunBuffer: () => {
+      for (let i=0; i<runBufferLength; i++) buffers.pixelRunBytes.set(buffers.pixelBytes, i*textureBPP)
+    },
+
+    setStyle: (colour, alpha, el) => {
+      el.style.fill = colour;   // lazy way of getting a colour string converted to #RRGGBB
+      //console.log(`fill=${el.style.fill}`)
+      colour = el.style.fill;
+
+      const r = Number('0x'+colour.substring(1,3)) >> 2;
+      const g = Number('0x'+colour.substring(3,5)) >> 2;
+      const b = Number('0x'+colour.substring(5,7)) >> 2;
+
+      buffers.pixelBytes[0] = 0xff & ((b << 6) | alpha);        // bbaaaaaa
+      buffers.pixelBytes[1] = 0xff & ((g << 4) | (b >> 2));     // ggggBBBB
+      buffers.pixelBytes[2] = (r << 2) + (g >> 4);              // rrrrrrGG
+      //populatePixelRunBuffer(fillPixelRunBytes, fillPixelBytes);
+      buffers.populateRunBuffer();
+    }
+  }
+
+  buffers.pixelBytes = new Uint8Array(buffers.pixelBuffer)
+  buffers.pixelRunBytes = new Uint8Array(buffers.pixelRunBuffer)
+
+  Object.defineProperty(buffers, 'alpha', {
+    set: function(newAlpha) {
+      buffers.pixelBytes[0] = (buffers.pixelBytes[0] & 0xc0) | newAlpha;
+      buffers.populateRunBuffer()
+    }
+  });
+
+  return buffers
+};
+
 export const constructCanvas = el => {
   const imageEl = el.getElementById('image');
   //console.log(`constructCanvas() id=${el.id}`)
@@ -27,18 +68,27 @@ export const constructCanvas = el => {
   let imageFilenameTxi = imageFilename + '.txi';
   let file;
   let auto = false;  // autoRedraw(): redisplay image after every change
+  let lineWid = 2;    // lineWidth (px)
   let alpha = 0x3f;   // 1.0 as six least-significant bits
-  const pixelBuffer = new ArrayBuffer(textureBPP);    // one px in ABGR6666
-  const pixelBytes = new Uint8Array(pixelBuffer);
-  const pixelRunBuffer = new ArrayBuffer(textureBPP * MAX_SECTION_LENGTH);    // one RLE run in ABGR6666
-  const pixelRunBytes = new Uint8Array(pixelRunBuffer);
+  const runBufferLength = Math.min(MAX_SECTION_LENGTH, el.width);               // px in a pixelRunBuffer
+  //const strokePixelBuffer = new ArrayBuffer(textureBPP);    // one px in ABGR6666
+  //const strokePixelBytes = new Uint8Array(strokePixelBuffer);
+  //const strokePixelRunBuffer = new ArrayBuffer(textureBPP * runBufferLength);    // one RLE run in ABGR6666
+  //const strokePixelRunBytes = new Uint8Array(strokePixelRunBuffer);
+  //const fillPixelBuffer = new ArrayBuffer(textureBPP);    // one px in ABGR6666
+  //const fillPixelBytes = new Uint8Array(fillPixelBuffer);
+  //const fillPixelRunBuffer = new ArrayBuffer(textureBPP * runBufferLength);    // one RLE run in ABGR6666
+  //const fillPixelRunBytes = new Uint8Array(fillPixelRunBuffer);
+  const strokeStyle = constructDrawStyle(runBufferLength)
+  const fillStyle = constructDrawStyle(runBufferLength)
 
-  const fillPixelRunBuffer = () => { // copy pixelBuffer to all px in pixelRunBuffer
-    for (let i=0; i<MAX_SECTION_LENGTH; i++) pixelRunBytes.set(pixelBytes, i*textureBPP);
-  }
+  /*const populatePixelRunBuffer = (pixelRunBytes, pixelBytes) => { // copy a pixelBuffer to all px in a pixelRunBuffer
+    // pixelRunBytes: Uint8Array that holds a RLE run of px
+    // pixelBytes: Unit8Array that holds a single px
+    for (let i=0; i<runBufferLength; i++) pixelRunBytes.set(pixelBytes, i*textureBPP);
+  }*/
 
-  pixelBytes[0] = alpha; // Set default fillStyle to opaque black
-  fillPixelRunBuffer();
+  strokeStyle.alpha = fillStyle.alpha = alpha   // Set default fillStyles to opaque black
 
   el.class = el.class;    // bring forward (ie, trigger) application of CSS styles
 
@@ -89,6 +139,33 @@ export const constructCanvas = el => {
     //dump(imageFilenameTxi);
   }
 
+  const drawRect = (left, top, width, height, style) => {
+    // Private function called by strokeRect and fillRect.
+    // Doesn't do any arg validation: caller is responsible for that.
+    // style: strokeStyle or fillStyle.
+
+    let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount, pxRemainingInWidth, pxRemainingInRun;
+    for (let row=0; row<height; row++) {
+      pixelIndex = y * el.width + left;
+      rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
+      rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
+      pxRemainingInWidth = width;
+      pxRemainingInRun = MAX_SECTION_LENGTH - rleRunOffset;     // how many pixels are in this run from rleRunOffset (assuming run is full)
+      position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
+      while (pxRemainingInWidth) {                                   // write px to a RLE run, until rect width all done
+        pixelCount = Math.min(pxRemainingInWidth, pxRemainingInRun);   // how many px to write in this run
+        byteCount = pixelCount * textureBPP;
+        //console.log(`fillRect() x=${x} pixelCount=${pixelCount}`);
+        //fs.writeSync(file, fillPixelRunBuffer, 0, byteCount, position);
+        fs.writeSync(file, style.pixelRunBuffer, 0, byteCount, position);
+        position += byteCount + 1;                                   // +1 to skip run length value
+        pxRemainingInWidth -= pixelCount;
+        pxRemainingInRun = MAX_SECTION_LENGTH;  // assume next run is a full run: restriction on width should prevent writing beyond end of final run
+      }
+      y++;
+    }
+  }
+
   constructFile();
 
   // PUBLIC API:
@@ -99,7 +176,32 @@ export const constructCanvas = el => {
     }
   });
 
-  Object.defineProperty(el, 'fillStyle', {  // TODO 3.2 gradient
+  /*Object.defineProperty(el, 'strokeStyle', {  // TODO 3.5 strokeStyle gradient
+    set: function(colour) {
+      el.style.fill = colour;   // lazy way of getting a colour string converted to #RRGGBB
+      //console.log(`fill=${el.style.fill}`)
+      colour = el.style.fill;
+      const r = Number('0x'+colour.substring(1,3)) >> 2;
+      const g = Number('0x'+colour.substring(3,5)) >> 2;
+      const b = Number('0x'+colour.substring(5,7)) >> 2;
+
+      // bbaaaaaa ggggBBBB rrrrrrGG
+      strokeStyle.pixelBytes[0] = 0xff & ((b << 6) | alpha);        // bbaaaaaa
+      strokeStyle.pixelBytes[1] = 0xff & ((g << 4) | (b >> 2));     // ggggBBBB
+      strokeStyle.pixelBytes[2] = (r << 2) + (g >> 4);              // rrrrrrGG
+
+      //populatePixelRunBuffer(strokePixelRunBytes, strokePixelBytes);
+      strokeStyle.populateRunBuffer()
+    }
+  });*/
+
+  Object.defineProperty(el, 'strokeStyle', {  // TODO 3.5 strokeStyle gradient
+    set: function(colour) {
+      strokeStyle.setStyle(colour, alpha, el)
+    }
+  });
+
+  /*Object.defineProperty(el, 'fillStyle', {
     set: function(colour) {
       el.style.fill = colour;   // lazy way of getting a colour string converted to #RRGGBB
       //console.log(`fill=${el.style.fill}`)
@@ -109,28 +211,49 @@ export const constructCanvas = el => {
       const b = Number('0x'+colour.substring(5,7)) >> 2;
       //console.log(`${r},${g},${b}`)
       // adapted from https://github.com/Fitbit/image-codec-txi/blob/master/src/encoder.ts
-      //pixelBytes[0] = 0xff & ((b << 6) | alpha);    // bbaaaaaa
-      //pixelBytes[1] = 0xff & ((g << 4) | (b >> 2)); // ggggbbbb
-      //pixelBytes[2] = 0xff & ((r << 2) | (g >> 4)); // rrrrrrgg
+      //fillPixelBytes[0] = 0xff & ((b << 6) | alpha);    // bbaaaaaa
+      //fillPixelBytes[1] = 0xff & ((g << 4) | (b >> 2)); // ggggbbbb
+      //fillPixelBytes[2] = 0xff & ((r << 2) | (g >> 4)); // rrrrrrgg
 
-      //pixelBytes[0] = 0xff & ((g << 6) | r);         // ggrrrrrr
-      //pixelBytes[1] = 0xff & ((b << 4) | (g >> 2));   // bbbbGGGG
-      //pixelBytes[2] = alpha | (b >> 4);                // aaaaaaBB
+      //fillPixelBytes[0] = 0xff & ((g << 6) | r);         // ggrrrrrr
+      //fillPixelBytes[1] = 0xff & ((b << 4) | (g >> 2));   // bbbbGGGG
+      //fillPixelBytes[2] = alpha | (b >> 4);                // aaaaaaBB
 
       // bbaaaaaa ggggBBBB rrrrrrGG
-      pixelBytes[0] = 0xff & ((b << 6) | alpha);         // bbaaaaaa
-      pixelBytes[1] = 0xff & ((g << 4) | (b >> 2));   // ggggBBBB
-      pixelBytes[2] = (r << 2) + (g >> 4);                // rrrrrrGG
-      //console.log(`${r},${g},${b} pixelBytes=${pixelBytes}`)
-      fillPixelRunBuffer();
+      //fillPixelBytes[0] = 0xff & ((b << 6) | alpha);        // bbaaaaaa
+      //fillPixelBytes[1] = 0xff & ((g << 4) | (b >> 2));     // ggggBBBB
+      //fillPixelBytes[2] = (r << 2) + (g >> 4);              // rrrrrrGG
+      //console.log(`${r},${g},${b} fillPixelBytes=${fillPixelBytes}`)
+      fillStyle.pixelBytes[0] = 0xff & ((b << 6) | alpha);        // bbaaaaaa
+      fillStyle.pixelBytes[1] = 0xff & ((g << 4) | (b >> 2));     // ggggBBBB
+      fillStyle.pixelBytes[2] = (r << 2) + (g >> 4);              // rrrrrrGG
+      //populatePixelRunBuffer(fillPixelRunBytes, fillPixelBytes);
+      fillStyle.populateRunBuffer();
+    }
+  });*/
+
+  Object.defineProperty(el, 'fillStyle', {  // TODO 3.5 fillStyle gradient
+    set: function(colour) {
+      fillStyle.setStyle(colour, alpha, el)
     }
   });
 
   Object.defineProperty(el, 'globalAlpha', {
-    set: function(newAlpha) {
-      alpha = newAlpha * 0x3f;
-      pixelBytes[0] = (pixelBytes[0] & 0xc0) | alpha;
-      fillPixelBuffer();
+    set: function(newAlpha) {   // TODO 1 alpha is incorrectly implemented: it doesn't consider previously-written pixels
+      alpha = Math.round(newAlpha * 0x3f);
+      //fillPixelBytes[0] = (fillPixelBytes[0] & 0xc0) | alpha;
+      //fillStyle.pixelBytes[0] = (fillStyle.pixelBytes[0] & 0xc0) | alpha;
+      //strokeStyle.pixelBytes[0] = (strokeStyle.pixelBytes[0] & 0xc0) | alpha;
+      //populatePixelRunBuffer(fillPixelRunBytes, fillPixelBytes);
+      //fillStyle.populateRunBuffer()
+      //strokeStyle.populateRunBuffer()
+      fillStyle.alpha = strokeStyle.alpha = alpha
+    }
+  });
+
+  Object.defineProperty(el, 'lineWidth', {
+    set: function(newWidth) {
+      lineWid = newWidth;
     }
   });
 
@@ -146,7 +269,8 @@ export const constructCanvas = el => {
     const rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
     const position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
     //console.log(`fillPixel(${x},${y}) rleRunIndex=${rleRunIndex} rleRunOffset=${rleRunOffset} position=${position}`);
-    fs.writeSync(file, pixelBuffer, 0, textureBPP, position);
+    //fs.writeSync(file, fillPixelBuffer, 0, textureBPP, position);
+    fs.writeSync(file, fillStyle.pixelBuffer, 0, textureBPP, position);
     //fs.closeSync(file);
 
     if (auto) el.redraw();
@@ -160,25 +284,37 @@ export const constructCanvas = el => {
 
     if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');
 
-    let y = top, pixelIndex, rleRunIndex, rleRunOffset, position, pixelCount, byteCount, pxRemainingInWidth, pxRemainingInRun;
-    for (let row=0; row<height; row++) {
-      pixelIndex = y * el.width + left;
-      rleRunIndex = Math.floor(pixelIndex / MAX_SECTION_LENGTH);    // which RLE run contains this px
-      rleRunOffset = pixelIndex % MAX_SECTION_LENGTH;               // how many px into the RLE run this px is
-      pxRemainingInWidth = width;
-      pxRemainingInRun = MAX_SECTION_LENGTH - rleRunOffset;     // how many pixels are in this run from rleRunOffset (assuming run is full)
-      position = rleRunIndex * RLE_FULL_RUN_DATA_LEN + rleRunOffset * textureBPP + TXI_HEADER_LENGTH + 1;    // +1 because of RLE run len value at start of this run
-      while (pxRemainingInWidth) {                                   // write px to a RLE run, until rect width all done
-        pixelCount = Math.min(pxRemainingInWidth, pxRemainingInRun);   // how many px to write in this run
-        byteCount = pixelCount * textureBPP;
-        //console.log(`fillRect() x=${x} pixelCount=${pixelCount}`);
-        fs.writeSync(file, pixelRunBuffer, 0, byteCount, position);
-        position += byteCount + 1;                                   // +1 to skip run length value
-        pxRemainingInWidth -= pixelCount;
-        pxRemainingInRun = MAX_SECTION_LENGTH;  // assume next run is a full run: restriction on width should prevent writing beyond end of final run
-      }
-      y++;
-    }
+    drawRect(left, top, width, height, fillStyle)
+
+    if (auto) el.redraw();
+  }
+
+  el.strokeRect = (left, top, width, height) => {
+    // left, top, width, height: integers
+    // Unlike HTML canvas, left and top indicate left top pixel co-ordinate, and width and height indicate overall outer size (including all side lines).
+    left = Math.round(left); top = Math.round(top); width = Math.round(width); height = Math.round(height);
+    // range-checks:
+    if (left < 0 || left >= el.width || top < 0 || top >= el.height || width <= 0 || height <= 0) return; // ideally allow width and height < 0
+    width = Math.min(width, el.width - left); height = Math.min(height, el.height - top);
+
+    if (file === undefined) file = fs.openSync(imageFilenameTxi, 'r+');
+
+    const sideWidth = Math.min(lineWid, Math.min(width,height))
+
+    // top:
+    //let y = top - (lineWid-1 >> 1)
+    drawRect(left, top, width, sideWidth, strokeStyle);
+
+    // bottom:
+    drawRect(left, top+height-sideWidth, width, sideWidth, strokeStyle)
+
+    // left:
+    const sideTop = top + sideWidth
+    const sideHeight = height - sideWidth - sideWidth
+    drawRect(left, sideTop, sideWidth, sideHeight, strokeStyle)
+
+    // right:
+    drawRect(left+width-sideWidth, sideTop, sideWidth, sideHeight, strokeStyle)
 
     if (auto) el.redraw();
   }
@@ -251,5 +387,5 @@ function toHex(x) { // TODO 4 del
   return(hex);
 }
 
-// TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+// TODO 3.4 line drawing: https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm, https://stackoverflow.com/questions/1222713/how-do-i-create-a-line-of-arbitrary-thickness-using-bresenham#:~:text=A%20line%20with%20thickness%20is%20a%20rectangle.%20The,line%20at%20each%20step%20of%20the%20outer%20loop.
 // TODO 3.6 async processing via queue
